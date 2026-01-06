@@ -8,6 +8,7 @@ import 'adaptive_badge.dart';
 import 'adaptive_bottom_navigation_bar.dart';
 import 'adaptive_button.dart';
 import 'ios26/ios26_scaffold.dart';
+import 'obstructing_preferred_size_wrapper.dart';
 
 /// Navigation destination for bottom navigation
 class AdaptiveNavigationDestination {
@@ -205,9 +206,11 @@ class _AdaptiveScaffoldState extends State<AdaptiveScaffold> {
 
         // Priority 1: Custom CupertinoNavigationBar (if provided and useNativeToolbar is false)
         if (widget.appBar?.cupertinoNavigationBar != null) {
-          navigationBar =
-              widget.appBar!.cupertinoNavigationBar
-                  as ObstructingPreferredSizeWidget;
+          final navBar = widget.appBar!.cupertinoNavigationBar!;
+          // ALWAYS wrap to ensure it's ObstructingPreferredSizeWidget
+          // CupertinoPageScaffold requires ObstructingPreferredSizeWidget and will fail
+          // with type cast error if given a PreferredSizeWidget (like PreferredSize)
+          navigationBar = _wrapAsObstructing(navBar);
         }
         // Priority 2: Build from title, actions, leading (if appBar has content)
         else if (widget.appBar != null &&
@@ -404,9 +407,11 @@ class _AdaptiveScaffoldState extends State<AdaptiveScaffold> {
 
       // Priority 1: Custom CupertinoNavigationBar (if provided and useNativeToolbar is false)
       if (widget.appBar?.cupertinoNavigationBar != null) {
-        navigationBar =
-            widget.appBar!.cupertinoNavigationBar
-                as ObstructingPreferredSizeWidget;
+        final navBar = widget.appBar!.cupertinoNavigationBar!;
+        // ALWAYS wrap to ensure it's ObstructingPreferredSizeWidget
+        // CupertinoPageScaffold requires ObstructingPreferredSizeWidget and will fail
+        // with type cast error if given a PreferredSizeWidget (like PreferredSize)
+        navigationBar = _wrapAsObstructing(navBar);
       }
       // Priority 2: Build from title, actions, leading (if appBar has content)
       else if (widget.appBar != null &&
@@ -653,6 +658,15 @@ class _AdaptiveScaffoldState extends State<AdaptiveScaffold> {
     };
     return iconMap[sfSymbol] ?? CupertinoIcons.circle;
   }
+
+  /// Wraps a PreferredSizeWidget as ObstructingPreferredSizeWidget
+  /// This is needed because CupertinoPageScaffold requires ObstructingPreferredSizeWidget
+  ObstructingPreferredSizeWidget _wrapAsObstructing(
+    PreferredSizeWidget preferredSizeWidget,
+  ) {
+    // Use the public wrapper widget which properly implements ObstructingPreferredSizeWidget
+    return ObstructingPreferredSizeWrapper(child: preferredSizeWidget);
+  }
 }
 
 /// Minimizable tab bar wrapper for iOS 26+ (used when useNativeToolbar: false)
@@ -859,3 +873,4 @@ class _AnimatedBackButtonState extends State<_AnimatedBackButton>
     );
   }
 }
+

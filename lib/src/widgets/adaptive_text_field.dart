@@ -33,6 +33,7 @@ class AdaptiveTextField extends StatelessWidget {
     this.suffixIcon,
     this.onChanged,
     this.onSubmitted,
+    this.onEditingComplete,
     this.onTap,
     this.inputFormatters,
     this.padding,
@@ -106,6 +107,10 @@ class AdaptiveTextField extends StatelessWidget {
 
   /// Called when the user indicates that they are done editing the text.
   final ValueChanged<String>? onSubmitted;
+
+  /// Called when the user submits editable text content (typically by pressing the
+  /// action button on the keyboard).
+  final VoidCallback? onEditingComplete;
 
   /// Called when the text field is tapped.
   final VoidCallback? onTap;
@@ -206,6 +211,7 @@ class AdaptiveTextField extends StatelessWidget {
       readOnly: readOnly,
       onChanged: onChanged,
       onSubmitted: onSubmitted,
+      onEditingComplete: onEditingComplete,
       onTap: onTap,
       inputFormatters: inputFormatters,
       decoration:

@@ -53,6 +53,9 @@ class AdaptiveAppBar {
   /// When provided and [useNativeToolbar] is false, this custom navigation bar will be used
   /// instead of building one from [title], [actions], and [leading].
   ///
+  /// Can be either PreferredSizeWidget or ObstructingPreferredSizeWidget.
+  /// Will be automatically converted to ObstructingPreferredSizeWidget if needed.
+  ///
   /// Ignored when [useNativeToolbar] is true or on non-iOS platforms.
   final PreferredSizeWidget? cupertinoNavigationBar;
 

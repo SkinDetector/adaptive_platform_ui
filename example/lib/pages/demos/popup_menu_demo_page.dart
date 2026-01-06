@@ -350,8 +350,8 @@ class _PopupMenuDemoPageState extends State<PopupMenuDemoPage> {
                 ),
                 decoration: BoxDecoration(
                   color: _editMode
-                      ? CupertinoColors.systemYellow.withOpacity(0.2)
-                      : CupertinoColors.systemGreen.withOpacity(0.2),
+                      ? CupertinoColors.systemYellow.withValues(alpha: 0.2)
+                      : CupertinoColors.systemGreen.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
                     color: _editMode
@@ -681,7 +681,7 @@ class _PopupMenuDemoPageState extends State<PopupMenuDemoPage> {
                     width: 36,
                     height: 36,
                     decoration: BoxDecoration(
-                      color: CupertinoColors.systemPurple.withOpacity(0.1),
+                      color: CupertinoColors.systemPurple.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(
@@ -760,7 +760,7 @@ class _PopupMenuDemoPageState extends State<PopupMenuDemoPage> {
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: CupertinoColors.systemBlue.withOpacity(0.3),
+                    color: CupertinoColors.systemBlue.withValues(alpha: 0.3),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
