@@ -587,6 +587,7 @@ class _AdaptiveScaffoldState extends State<AdaptiveScaffold> {
         body: widget.body ?? const SizedBox.shrink(),
         bottomNavigationBar: bottomNavBar,
         floatingActionButton: widget.floatingActionButton,
+        extendBody: true, // Allow body to extend under navigation bar for blur effect
       );
     }
 
