@@ -21,13 +21,23 @@ class AdaptiveNavigationDestination {
     this.addSpacerAfter = false,
   });
 
-  /// Icon to display (SF Symbol name for iOS, IconData for cross-platform)
+  /// Icon to display.
+  ///
+  /// Supported values include:
+  /// - SF Symbol name `String` for iOS native paths
+  /// - `IconData`
+  /// - `Widget`
+  /// - `ImageProvider` such as `AssetImage`, `FileImage`, or `NetworkImage`
   final dynamic icon;
 
   /// Label text for the destination
   final String label;
 
-  /// Optional selected state icon
+  /// Optional selected state icon.
+  ///
+  /// Accepts the same value types as [icon], including an SF Symbol name
+  /// `String` (e.g. `magazine.fill`) which the iOS 26+ native tab bar applies
+  /// when the destination is selected. Falls back to [icon] when null.
   final dynamic selectedIcon;
 
   /// Whether this is a search tab (iOS 26+)
@@ -67,9 +77,22 @@ class AdaptiveScaffold extends StatefulWidget {
     this.appBar,
     this.bottomNavigationBar,
     this.body,
+    this.resizeToAvoidBottomInset,
     this.floatingActionButton,
     this.minimizeBehavior = TabBarMinimizeBehavior.automatic,
     this.enableBlur = true,
+    this.enableToolbarGradient = true,
+    this.extendBodyBehindAppBar = false,
+    this.drawer,
+    this.endDrawer,
+    this.drawerScrimColor,
+    this.onDrawerChanged,
+    this.onEndDrawerChanged,
+    this.drawerEnableOpenDragGesture = true,
+    this.endDrawerEnableOpenDragGesture = true,
+    this.scaffoldKey,
+    this.useHeroBackButton = true,
+    this.tabBarHidden = false,
   });
 
   /// App bar configuration
@@ -83,6 +106,13 @@ class AdaptiveScaffold extends StatefulWidget {
   /// Body widget
   final Widget? body;
 
+  /// Whether the scaffold should resize when the on-screen keyboard appears.
+  ///
+  /// When null, each platform path uses its existing default behavior.
+  /// Set to `false` to keep bottom navigation pinned while the keyboard
+  /// overlays content, such as on iOS tab-based layouts.
+  final bool? resizeToAvoidBottomInset;
+
   /// Floating action button (Material only)
   final Widget? floatingActionButton;
 
@@ -94,6 +124,55 @@ class AdaptiveScaffold extends StatefulWidget {
   /// When enabled, content behind the tab bar will be blurred
   final bool enableBlur;
 
+  /// @deprecated No longer used. iOS 26+ uses native scroll edge effects.
+  /// This parameter is kept for backwards compatibility but has no effect.
+  final bool enableToolbarGradient;
+
+  /// Whether to extend the body behind the app bar (iOS only)
+  /// When true, the body will extend behind the app bar, allowing for
+  /// immersive content. When false, the body will start below the app bar.
+  final bool extendBodyBehindAppBar;
+
+  /// A panel displayed to the side of the body, often hidden on mobile.
+  /// On Android, passed directly to the Material Scaffold.
+  /// On iOS/iOS 26+, wrapped with a transparent Material Scaffold for drawer behavior.
+  /// Open programmatically via `Scaffold.of(context).openDrawer()`.
+  final Widget? drawer;
+
+  /// A panel displayed on the opposite side of the drawer.
+  /// Open programmatically via `Scaffold.of(context).openEndDrawer()`.
+  final Widget? endDrawer;
+
+  /// The color to use for the scrim that obscures the content behind the drawer.
+  final Color? drawerScrimColor;
+
+  /// Called when the drawer is opened or closed.
+  final DrawerCallback? onDrawerChanged;
+
+  /// Called when the end drawer is opened or closed.
+  final DrawerCallback? onEndDrawerChanged;
+
+  /// Whether to enable the drag gesture to open the drawer.
+  final bool drawerEnableOpenDragGesture;
+
+  /// Whether to enable the drag gesture to open the end drawer.
+  final bool endDrawerEnableOpenDragGesture;
+
+  /// A key to use for the internal [Scaffold] that provides drawer behavior.
+  /// Use this to open the drawer programmatically via
+  /// `scaffoldKey.currentState?.openDrawer()`.
+  final GlobalKey<ScaffoldState>? scaffoldKey;
+
+  /// Whether to use Hero animation for the back button on iOS 26+
+  /// When true, the back button stays pinned during page transitions.
+  /// Only affects iOS 26+. Defaults to true.
+  final bool useHeroBackButton;
+
+  /// Whether to hide the native tab bar (iOS 26+ only).
+  /// Use this to hide the tab bar when showing modal bottom sheets
+  /// to prevent native platform views from bleeding through.
+  final bool tabBarHidden;
+
   @override
   State<AdaptiveScaffold> createState() => _AdaptiveScaffoldState();
 }
@@ -101,6 +180,77 @@ class AdaptiveScaffold extends StatefulWidget {
 class _AdaptiveScaffoldState extends State<AdaptiveScaffold> {
   final GlobalKey<_MinimizableTabBarState> _tabBarKey =
       GlobalKey<_MinimizableTabBarState>();
+
+  /// Builds the app bar title area, optionally with a subtitle below it.
+  ///
+  /// Returns [AdaptiveAppBar.titleWidget] verbatim when provided; otherwise a
+  /// title (plus subtitle when set). When [nativeTitleFallback] is true the
+  /// plain-title case returns null so the iOS 26 native toolbar can render the
+  /// title itself; the other paths return a plain `Text` instead.
+  Widget? _buildAppBarTitle({
+    CrossAxisAlignment crossAxisAlignment = CrossAxisAlignment.center,
+    TextStyle? titleStyle,
+    double subtitleFontSize = 12,
+    Color? subtitleColor,
+    bool nativeTitleFallback = false,
+  }) {
+    if (widget.appBar?.titleWidget != null) return widget.appBar!.titleWidget;
+    final title = widget.appBar?.title;
+    if (title == null) return null;
+    final subtitle = widget.appBar?.subtitle;
+    if (subtitle == null || subtitle.isEmpty) {
+      return nativeTitleFallback ? null : Text(title, style: titleStyle);
+    }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: crossAxisAlignment,
+      children: [
+        Text(title, style: titleStyle),
+        Text(
+          subtitle,
+          style: TextStyle(
+            fontSize: subtitleFontSize,
+            fontWeight: FontWeight.normal,
+            color: subtitleColor,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// iOS 26+ native toolbar title overlay. The native title is a plain string,
+  /// so a subtitle (or custom widget) is drawn as a Flutter overlay instead.
+  /// Colors resolve from the ambient brightness so the overlay matches the
+  /// native title in light and dark mode.
+  Widget? _buildIOS26TitleOverlay() {
+    return _buildAppBarTitle(
+      nativeTitleFallback: true,
+      titleStyle: TextStyle(
+        fontSize: 17,
+        fontWeight: FontWeight.w600,
+        color: CupertinoColors.label.resolveFrom(context),
+      ),
+      subtitleColor: CupertinoColors.secondaryLabel.resolveFrom(context),
+    );
+  }
+
+  Widget _wrapWithDrawerIfNeeded(Widget child) {
+    if (widget.drawer == null && widget.endDrawer == null) {
+      return child;
+    }
+    return Scaffold(
+      key: widget.scaffoldKey,
+      backgroundColor: Colors.transparent,
+      body: child,
+      drawer: widget.drawer,
+      endDrawer: widget.endDrawer,
+      drawerScrimColor: widget.drawerScrimColor,
+      onDrawerChanged: widget.onDrawerChanged,
+      onEndDrawerChanged: widget.onEndDrawerChanged,
+      drawerEnableOpenDragGesture: widget.drawerEnableOpenDragGesture,
+      endDrawerEnableOpenDragGesture: widget.endDrawerEnableOpenDragGesture,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -154,46 +304,33 @@ class _AdaptiveScaffoldState extends State<AdaptiveScaffold> {
         }).toList();
       }
 
-      return IOS26Scaffold(
-        key: ValueKey(
-          'ios26_scaffold_stable_${widget.body?.runtimeType.toString() ?? "empty"}',
+      return _wrapWithDrawerIfNeeded(
+        IOS26Scaffold(
+          // Fork patch: key intentionally excludes selectedIndex so the scaffold
+          // is not remounted when the bottom navigation selection changes.
+          key: ValueKey(
+            'ios26_scaffold_stable_${widget.body?.runtimeType.toString() ?? "empty"}',
+          ),
+          bottomNavigationBar: widget.bottomNavigationBar,
+          title: widget.appBar?.title,
+          actions: widget.appBar?.actions,
+          leading: widget.appBar?.leading,
+          tintColor: widget.appBar?.tintColor,
+          titleWidget: _buildIOS26TitleOverlay(),
+          minimizeBehavior: widget.minimizeBehavior,
+          enableBlur: widget.enableBlur,
+          useHeroBackButton: widget.useHeroBackButton,
+          tabBarHidden: widget.tabBarHidden,
+          resizeToAvoidBottomInset: widget.resizeToAvoidBottomInset,
+          children: childrenList,
         ),
-        bottomNavigationBar: widget.bottomNavigationBar,
-        title: widget.appBar?.title,
-        actions: widget.appBar?.actions,
-        leading: widget.appBar?.leading,
-        minimizeBehavior: widget.minimizeBehavior,
-        enableBlur: widget.enableBlur,
-        children: childrenList,
       );
     }
 
     // iOS <26 (iOS 18 and below) OR iOS 26+ with useNativeToolbar: false
     // Use CupertinoPageScaffold with CupertinoTabBar if destinations provided
     if (PlatformInfo.isIOS) {
-      // Auto back button for iOS 26+ when useNativeToolbar is false
       Widget? effectiveLeading = widget.appBar?.leading;
-      if (PlatformInfo.isIOS26OrHigher() &&
-          !useNativeToolbar &&
-          widget.appBar?.leading == null &&
-          (widget.bottomNavigationBar?.items == null ||
-              widget.bottomNavigationBar!.items!.isEmpty)) {
-        // Check if we can pop AND this is the current route (to prevent showing on previous page during transition)
-        final canPop = Navigator.maybeOf(context)?.canPop() ?? false;
-        final isCurrent = ModalRoute.of(context)?.isCurrent ?? true;
-
-        if (canPop) {
-          if (isCurrent) {
-            // Active route: show animated back button
-            effectiveLeading = _AnimatedBackButton(
-              onPressed: () => Navigator.of(context).pop(),
-            );
-          } else {
-            // Transition/background route: show empty SizedBox to prevent native back button
-            effectiveLeading = const SizedBox(height: 38, width: 38);
-          }
-        }
-      }
 
       if (widget.bottomNavigationBar?.items != null &&
           widget.bottomNavigationBar!.items!.isNotEmpty &&
@@ -217,14 +354,14 @@ class _AdaptiveScaffoldState extends State<AdaptiveScaffold> {
             (widget.appBar!.title != null ||
                 (widget.appBar!.actions != null &&
                     widget.appBar!.actions!.isNotEmpty) ||
-                effectiveLeading != null)) {
+                effectiveLeading != null ||
+                (Navigator.maybeOf(context)?.canPop() ?? false))) {
           navigationBar = CupertinoNavigationBar(
-            automaticallyImplyLeading: PlatformInfo.isIOS26OrHigher()
+            automaticallyImplyLeading:
+                PlatformInfo.isIOS26OrHigher() && useNativeToolbar
                 ? false
-                : true, // Let CupertinoNavigationBar handle back button for iOS < 26
-            middle: widget.appBar!.title != null
-                ? Text(widget.appBar!.title!)
-                : null,
+                : true, // Let CupertinoNavigationBar handle back button naturally
+            middle: _buildAppBarTitle(),
             trailing:
                 widget.appBar!.actions != null &&
                     widget.appBar!.actions!.isNotEmpty
@@ -234,6 +371,8 @@ class _AdaptiveScaffoldState extends State<AdaptiveScaffold> {
                       Widget actionChild;
                       if (action.title != null) {
                         actionChild = Text(action.title!);
+                      } else if (action.iconWidget != null) {
+                        actionChild = action.iconWidget!;
                       } else if (action.icon != null) {
                         actionChild = Icon(action.icon!);
                       } else {
@@ -266,6 +405,7 @@ class _AdaptiveScaffoldState extends State<AdaptiveScaffold> {
             selectedItemColor: widget.bottomNavigationBar!.selectedItemColor,
             unselectedItemColor:
                 widget.bottomNavigationBar!.unselectedItemColor,
+            hidden: widget.tabBarHidden,
           );
         }
         // iOS 26+ with useNativeBottomBar=false OR iOS <26
@@ -284,40 +424,25 @@ class _AdaptiveScaffoldState extends State<AdaptiveScaffold> {
               onTap: widget.bottomNavigationBar!.onTap!,
               activeColor: widget.bottomNavigationBar!.selectedItemColor,
               items: widget.bottomNavigationBar!.items!.map((dest) {
-                // Convert icon to IconData if it's a String (SF Symbol)
-                final IconData iconData = dest.icon is String
-                    ? _sfSymbolToCupertinoIcon(dest.icon as String)
-                    : dest.icon as IconData;
+                Widget iconWidget = _buildNavigationIconWidget(
+                  rawIcon: dest.icon,
+                  color: unselectedColor,
+                  platform: TargetPlatform.iOS,
+                );
 
-                final IconData? selectedIconData = dest.selectedIcon != null
-                    ? (dest.selectedIcon is String
-                          ? _sfSymbolToCupertinoIcon(
-                              dest.selectedIcon as String,
-                            )
-                          : dest.selectedIcon as IconData)
-                    : null;
-
-                // Wrap icons with badge if badgeCount is provided
-                // Only apply color if unselectedItemColor is provided
-                Widget iconWidget = unselectedColor != null
-                    ? Icon(iconData, color: unselectedColor)
-                    : Icon(iconData);
-                Widget activeIconWidget = selectedIconData != null
-                    ? Icon(selectedIconData)
-                    : Icon(iconData);
+                Widget activeIconWidget = _buildNavigationIconWidget(
+                  rawIcon: dest.selectedIcon ?? dest.icon,
+                  platform: TargetPlatform.iOS,
+                );
 
                 if (dest.badgeCount != null && dest.badgeCount! > 0) {
                   iconWidget = AdaptiveBadge(
                     count: dest.badgeCount,
-                    child: unselectedColor != null
-                        ? Icon(iconData, color: unselectedColor)
-                        : Icon(iconData),
+                    child: iconWidget,
                   );
                   activeIconWidget = AdaptiveBadge(
                     count: dest.badgeCount,
-                    child: selectedIconData != null
-                        ? Icon(selectedIconData)
-                        : Icon(iconData),
+                    child: activeIconWidget,
                   );
                 }
 
@@ -394,9 +519,21 @@ class _AdaptiveScaffoldState extends State<AdaptiveScaffold> {
           child: bodyWidget,
         );
 
-        return CupertinoPageScaffold(
-          navigationBar: navigationBar,
-          child: bodyWidget,
+        // When the native tab bar is rendered via Stack + Positioned(bottom:0),
+        // disable resizeToAvoidBottomInset so the keyboard covers the tab bar
+        // instead of pushing it above.
+        final hasNativeTabBar =
+            PlatformInfo.isIOS26OrHigher() &&
+            useNativeBottomBar &&
+            tabBar != null;
+
+        return _wrapWithDrawerIfNeeded(
+          CupertinoPageScaffold(
+            resizeToAvoidBottomInset:
+                widget.resizeToAvoidBottomInset ?? !hasNativeTabBar,
+            navigationBar: navigationBar,
+            child: bodyWidget,
+          ),
         );
       }
 
@@ -416,16 +553,17 @@ class _AdaptiveScaffoldState extends State<AdaptiveScaffold> {
       // Priority 2: Build from title, actions, leading (if appBar has content)
       else if (widget.appBar != null &&
           (widget.appBar!.title != null ||
+              widget.appBar!.titleWidget != null ||
               (widget.appBar!.actions != null &&
                   widget.appBar!.actions!.isNotEmpty) ||
-              effectiveLeading != null)) {
+              effectiveLeading != null ||
+              (Navigator.maybeOf(context)?.canPop() ?? false))) {
         navigationBar = CupertinoNavigationBar(
-          automaticallyImplyLeading: PlatformInfo.isIOS26OrHigher()
+          automaticallyImplyLeading:
+              PlatformInfo.isIOS26OrHigher() && useNativeToolbar
               ? false
-              : true, // Let CupertinoNavigationBar handle back button for iOS < 26
-          middle: widget.appBar!.title != null
-              ? Text(widget.appBar!.title!)
-              : null,
+              : true, // Let CupertinoNavigationBar handle back button naturally
+          middle: _buildAppBarTitle(),
           trailing:
               widget.appBar!.actions != null &&
                   widget.appBar!.actions!.isNotEmpty
@@ -435,6 +573,8 @@ class _AdaptiveScaffoldState extends State<AdaptiveScaffold> {
                     Widget actionChild;
                     if (action.title != null) {
                       actionChild = Text(action.title!);
+                    } else if (action.iconWidget != null) {
+                      actionChild = action.iconWidget!;
                     } else if (action.icon != null) {
                       actionChild = Icon(action.icon!);
                     } else {
@@ -482,7 +622,9 @@ class _AdaptiveScaffoldState extends State<AdaptiveScaffold> {
       );
 
       // Always use CupertinoPageScaffold to ensure proper background color
-      return CupertinoPageScaffold(navigationBar: navigationBar, child: body);
+      return _wrapWithDrawerIfNeeded(
+        CupertinoPageScaffold(navigationBar: navigationBar, child: body),
+      );
     }
 
     // Android - Use NavigationBar if destinations provided
@@ -502,13 +644,19 @@ class _AdaptiveScaffoldState extends State<AdaptiveScaffold> {
       // Priority 2: Build from title, actions, leading (if appBar has content)
       else if (widget.appBar != null &&
           (widget.appBar!.title != null ||
+              widget.appBar!.titleWidget != null ||
               (widget.appBar!.actions != null &&
                   widget.appBar!.actions!.isNotEmpty) ||
               widget.appBar!.leading != null)) {
         appBar = AppBar(
-          title: widget.appBar!.title != null
-              ? Text(widget.appBar!.title!)
-              : null,
+          title: _buildAppBarTitle(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            subtitleFontSize: 13,
+            subtitleColor: Theme.of(
+              context,
+            ).textTheme.bodySmall?.color?.withValues(alpha: 0.7),
+          ),
+          centerTitle: widget.appBar!.titleWidget != null,
           actions: widget.appBar!.actions?.map((action) {
             if (action.title != null) {
               return TextButton(
@@ -517,9 +665,9 @@ class _AdaptiveScaffoldState extends State<AdaptiveScaffold> {
               );
             }
             return IconButton(
-              icon: action.icon != null
+              icon: action.iconWidget ?? (action.icon != null
                   ? Icon(action.icon!)
-                  : const Icon(Icons.circle),
+                  : const Icon(Icons.circle)),
               onPressed: action.onPressed,
             );
           }).toList(),
@@ -541,35 +689,24 @@ class _AdaptiveScaffoldState extends State<AdaptiveScaffold> {
           onDestinationSelected: widget.bottomNavigationBar!.onTap!,
           indicatorColor: widget.bottomNavigationBar!.selectedItemColor,
           destinations: widget.bottomNavigationBar!.items!.map((dest) {
-            // Convert icon to IconData if it's a String (SF Symbol - fallback to Icons)
-            final IconData iconData = dest.icon is String
-                ? Icons
-                      .circle // Fallback for Android if SF Symbol is provided
-                : dest.icon as IconData;
+            Widget iconWidget = _buildNavigationIconWidget(
+              rawIcon: dest.icon,
+              platform: TargetPlatform.android,
+            );
 
-            final IconData? selectedIconData = dest.selectedIcon != null
-                ? (dest.selectedIcon is String
-                      ? Icons
-                            .circle // Fallback for Android
-                      : dest.selectedIcon as IconData)
-                : null;
-
-            // Wrap icons with badge if badgeCount is provided
-            Widget iconWidget = Icon(iconData);
-            Widget selectedIconWidget = selectedIconData != null
-                ? Icon(selectedIconData)
-                : Icon(iconData);
+            Widget selectedIconWidget = _buildNavigationIconWidget(
+              rawIcon: dest.selectedIcon ?? dest.icon,
+              platform: TargetPlatform.android,
+            );
 
             if (dest.badgeCount != null && dest.badgeCount! > 0) {
               iconWidget = AdaptiveBadge(
                 count: dest.badgeCount,
-                child: Icon(iconData),
+                child: iconWidget,
               );
               selectedIconWidget = AdaptiveBadge(
                 count: dest.badgeCount,
-                child: selectedIconData != null
-                    ? Icon(selectedIconData)
-                    : Icon(iconData),
+                child: selectedIconWidget,
               );
             }
 
@@ -583,11 +720,22 @@ class _AdaptiveScaffoldState extends State<AdaptiveScaffold> {
       }
 
       return Scaffold(
+        key: widget.scaffoldKey,
         appBar: appBar,
         body: widget.body ?? const SizedBox.shrink(),
+        resizeToAvoidBottomInset: widget.resizeToAvoidBottomInset,
         bottomNavigationBar: bottomNavBar,
         floatingActionButton: widget.floatingActionButton,
-        extendBody: true, // Allow body to extend under navigation bar for blur effect
+        // Fork patch: allow body to extend under the navigation bar for the blur effect.
+        extendBody: true,
+        extendBodyBehindAppBar: widget.extendBodyBehindAppBar,
+        drawer: widget.drawer,
+        endDrawer: widget.endDrawer,
+        drawerScrimColor: widget.drawerScrimColor,
+        onDrawerChanged: widget.onDrawerChanged,
+        onEndDrawerChanged: widget.onEndDrawerChanged,
+        drawerEnableOpenDragGesture: widget.drawerEnableOpenDragGesture,
+        endDrawerEnableOpenDragGesture: widget.endDrawerEnableOpenDragGesture,
       );
     }
 
@@ -603,9 +751,14 @@ class _AdaptiveScaffoldState extends State<AdaptiveScaffold> {
     // Priority 2: Build AppBar if widget.appBar is provided (even if empty - for automatic back button)
     else if (widget.appBar != null) {
       appBar = AppBar(
-        title: widget.appBar!.title != null
-            ? Text(widget.appBar!.title!)
-            : null,
+        title: _buildAppBarTitle(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          subtitleFontSize: 13,
+          subtitleColor: Theme.of(
+            context,
+          ).textTheme.bodySmall?.color?.withValues(alpha: 0.7),
+        ),
+        centerTitle: widget.appBar!.titleWidget != null,
         actions: widget.appBar!.actions?.map((action) {
           if (action.title != null) {
             return TextButton(
@@ -614,9 +767,9 @@ class _AdaptiveScaffoldState extends State<AdaptiveScaffold> {
             );
           }
           return IconButton(
-            icon: action.icon != null
+            icon: action.iconWidget ?? (action.icon != null
                 ? Icon(action.icon!)
-                : const Icon(Icons.circle),
+                : const Icon(Icons.circle)),
             onPressed: action.onPressed,
           );
         }).toList(),
@@ -627,9 +780,19 @@ class _AdaptiveScaffoldState extends State<AdaptiveScaffold> {
 
     // Always use Scaffold to ensure Material context
     return Scaffold(
+      key: widget.scaffoldKey,
       appBar: appBar,
       body: widget.body ?? const SizedBox.shrink(),
+      resizeToAvoidBottomInset: widget.resizeToAvoidBottomInset,
       floatingActionButton: widget.floatingActionButton,
+      extendBodyBehindAppBar: widget.extendBodyBehindAppBar,
+      drawer: widget.drawer,
+      endDrawer: widget.endDrawer,
+      drawerScrimColor: widget.drawerScrimColor,
+      onDrawerChanged: widget.onDrawerChanged,
+      onEndDrawerChanged: widget.onEndDrawerChanged,
+      drawerEnableOpenDragGesture: widget.drawerEnableOpenDragGesture,
+      endDrawerEnableOpenDragGesture: widget.endDrawerEnableOpenDragGesture,
     );
   }
 
@@ -668,6 +831,55 @@ class _AdaptiveScaffoldState extends State<AdaptiveScaffold> {
     // Use the public wrapper widget which properly implements ObstructingPreferredSizeWidget
     return ObstructingPreferredSizeWrapper(child: preferredSizeWidget);
   }
+
+  Widget _buildNavigationIconWidget({
+    required dynamic rawIcon,
+    Color? color,
+    required TargetPlatform platform,
+  }) {
+    if (rawIcon is Widget) {
+      return color != null && rawIcon is ImageIcon
+          ? ImageIcon(rawIcon.image, color: color)
+          : rawIcon;
+    }
+
+    if (rawIcon is ImageProvider) {
+      return _NavigationImageIcon(image: rawIcon);
+    }
+
+    final IconData iconData;
+    if (rawIcon is String) {
+      iconData = platform == TargetPlatform.iOS
+          ? _sfSymbolToCupertinoIcon(rawIcon)
+          : Icons.circle;
+    } else {
+      iconData = rawIcon as IconData;
+    }
+
+    return color != null ? Icon(iconData, color: color) : Icon(iconData);
+  }
+}
+
+class _NavigationImageIcon extends StatelessWidget {
+  const _NavigationImageIcon({required this.image});
+
+  final ImageProvider image;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 26,
+      height: 26,
+      child: ClipOval(
+        child: Image(
+          image: image,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) =>
+              const Icon(CupertinoIcons.person_crop_circle),
+        ),
+      ),
+    );
+  }
 }
 
 /// Minimizable tab bar wrapper for iOS 26+ (used when useNativeToolbar: false)
@@ -682,6 +894,7 @@ class _MinimizableTabBar extends StatefulWidget {
     required this.enableBlur,
     this.selectedItemColor,
     this.unselectedItemColor,
+    this.hidden = false,
   });
 
   final int selectedIndex;
@@ -691,6 +904,7 @@ class _MinimizableTabBar extends StatefulWidget {
   final bool enableBlur;
   final Color? selectedItemColor;
   final Color? unselectedItemColor;
+  final bool hidden;
 
   @override
   State<_MinimizableTabBar> createState() => _MinimizableTabBarState();
@@ -800,6 +1014,7 @@ class _MinimizableTabBarState extends State<_MinimizableTabBar>
             widget.selectedItemColor ?? CupertinoTheme.of(context).primaryColor,
         unselectedItemTint: widget.unselectedItemColor,
         minimizeBehavior: widget.minimizeBehavior,
+        hidden: widget.hidden,
       ),
     );
   }

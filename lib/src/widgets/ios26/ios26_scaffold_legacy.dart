@@ -18,6 +18,8 @@ class IOS26ScaffoldLegacy extends StatefulWidget {
     this.leading,
     this.minimizeBehavior = TabBarMinimizeBehavior.automatic,
     this.enableBlur = true,
+    this.enableToolbarGradient = true,
+    this.tabBarHidden = false,
     required this.children,
   });
 
@@ -29,6 +31,11 @@ class IOS26ScaffoldLegacy extends StatefulWidget {
   final Widget? leading;
   final TabBarMinimizeBehavior minimizeBehavior;
   final bool enableBlur;
+
+  /// @deprecated No longer used. iOS 26+ uses native scroll edge effects.
+  /// This parameter is kept for backwards compatibility but has no effect.
+  final bool enableToolbarGradient;
+  final bool tabBarHidden;
   final List<Widget> children;
 
   @override
@@ -177,6 +184,7 @@ class _IOS26ScaffoldLegacyState extends State<IOS26ScaffoldLegacy>
                           onTap: widget.onDestinationSelected,
                           tint: CupertinoTheme.of(context).primaryColor,
                           minimizeBehavior: widget.minimizeBehavior,
+                          hidden: widget.tabBarHidden,
                         )
                       : IOS26NativeTabBar(
                           destinations: widget.destinations,
@@ -184,6 +192,7 @@ class _IOS26ScaffoldLegacyState extends State<IOS26ScaffoldLegacy>
                           onTap: widget.onDestinationSelected,
                           tint: CupertinoTheme.of(context).primaryColor,
                           minimizeBehavior: widget.minimizeBehavior,
+                          hidden: widget.tabBarHidden,
                         ),
                 ),
               ),

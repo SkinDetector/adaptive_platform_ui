@@ -1,13 +1,12 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import '../../utils/animation.dart';
 import '../adaptive_app_bar_action.dart';
 
-/// Native iOS 26 UIToolbar widget using platform views
-/// Implements Liquid Glass design with blur effects
+/// Native iOS 26 UINavigationBar widget using platform views
+/// Implements Liquid Glass design with native blur effects
 class IOS26NativeToolbar extends StatefulWidget {
   const IOS26NativeToolbar({
     super.key,
@@ -17,7 +16,10 @@ class IOS26NativeToolbar extends StatefulWidget {
     this.actions,
     this.onLeadingTap,
     this.onActionTap,
+    this.titleWidget,
+    this.tintColor,
     this.height = 44.0,
+    this.showNativeView = true,
   });
 
   final String? title;
@@ -26,7 +28,20 @@ class IOS26NativeToolbar extends StatefulWidget {
   final List<AdaptiveAppBarAction>? actions;
   final VoidCallback? onLeadingTap;
   final ValueChanged<int>? onActionTap;
+
+  /// Custom widget overlaid at the title position.
+  /// When set, the native title is hidden and this widget is centered instead.
+  final Widget? titleWidget;
+
+  /// Tint color for bar button items (action buttons and back button)
+  ///
+  /// When set, this color is applied to the UINavigationBar's tintColor,
+  /// which colors all UIBarButtonItem instances.
+  /// If null, the system default tint color is used.
+  final Color? tintColor;
+
   final double height;
+  final bool showNativeView;
 
   @override
   State<IOS26NativeToolbar> createState() => _IOS26NativeToolbarState();
@@ -34,88 +49,166 @@ class IOS26NativeToolbar extends StatefulWidget {
 
 class _IOS26NativeToolbarState extends State<IOS26NativeToolbar> {
   MethodChannel? _channel;
+  bool? _lastIsDark;
+  int? _lastTint;
+  List<AdaptiveAppBarAction>? _lastActions;
+
+  bool get _isDark =>
+      MediaQuery.platformBrightnessOf(context) == Brightness.dark;
+
+  int _colorToARGB(Color color) {
+    // Resolve CupertinoDynamicColor if needed
+    Color resolvedColor = color;
+    if (color is CupertinoDynamicColor) {
+      final brightness = MediaQuery.platformBrightnessOf(context);
+      resolvedColor =
+          brightness == Brightness.dark ? color.darkColor : color.color;
+    }
+
+    return ((resolvedColor.a * 255.0).round() & 0xff) << 24 |
+        ((resolvedColor.r * 255.0).round() & 0xff) << 16 |
+        ((resolvedColor.g * 255.0).round() & 0xff) << 8 |
+        ((resolvedColor.b * 255.0).round() & 0xff);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncPropsToNativeIfNeeded();
+  }
+
+  @override
+  void didUpdateWidget(IOS26NativeToolbar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _syncPropsToNativeIfNeeded();
+
+    if (widget.title != oldWidget.title) {
+      final ch = _channel;
+      // Skip when a titleWidget overlay is shown — the native title stays hidden
+      if (ch != null && widget.title != null && widget.titleWidget == null) {
+        ch.invokeMethod('updateTitle', {'title': widget.title!});
+      }
+    }
+  }
+
+  Future<void> _syncPropsToNativeIfNeeded() async {
+    final ch = _channel;
+    if (ch == null) return;
+
+    // Sync brightness
+    final isDark = _isDark;
+    if (_lastIsDark != isDark) {
+      try {
+        await ch.invokeMethod('setBrightness', {'isDark': isDark});
+        _lastIsDark = isDark;
+      } catch (e) {
+        // Ignore errors if platform view is not yet ready
+      }
+    }
+
+    // Sync actions (per-action tint, prominent, etc.)
+    final actions = widget.actions;
+    if (_lastActions != null && !_actionsEqual(_lastActions!, actions)) {
+      try {
+        final params = <String, dynamic>{
+          if (actions != null && actions.isNotEmpty)
+            'actions': actions.map((a) => a.toNativeMap()).toList(),
+        };
+        await ch.invokeMethod('updateActions', params);
+        _lastActions = actions != null ? List.of(actions) : null;
+      } catch (e) {
+        // Ignore errors if platform view is not yet ready
+      }
+    }
+
+    // Sync tint color
+    final tint =
+        widget.tintColor != null ? _colorToARGB(widget.tintColor!) : null;
+    if (_lastTint != tint) {
+      try {
+        await ch.invokeMethod('setStyle', {'tint': tint});
+        _lastTint = tint;
+      } catch (e) {
+        // Ignore errors if platform view is not yet ready
+      }
+    }
+  }
+
+  bool _actionsEqual(
+      List<AdaptiveAppBarAction>? a, List<AdaptiveAppBarAction>? b) {
+    if (identical(a, b)) return true;
+    if (a == null || b == null) return false;
+    if (a.length != b.length) return false;
+    for (int i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Only use native toolbar on iOS 26+
     if (defaultTargetPlatform != TargetPlatform.iOS) {
       return _buildFallbackToolbar();
     }
 
     final safePadding = MediaQuery.of(context).padding.top;
 
-    // Priority: custom leading widget > leadingText
-    // If custom leading widget provided, don't send leadingText to native
     final creationParams = <String, dynamic>{
-      if (widget.title != null) 'title': widget.title!,
+      // Hide native title when a titleWidget overlay is provided
+      if (widget.title != null && widget.titleWidget == null)
+        'title': widget.title!,
       if (widget.leading == null && widget.leadingText != null)
         'leading': widget.leadingText!,
       if (widget.actions != null && widget.actions!.isNotEmpty)
-        'actions': widget.actions!
-            .map((action) => action.toNativeMap())
-            .toList(),
+        'actions': widget.actions!.map((a) => a.toNativeMap()).toList(),
+      'isDark': _isDark,
+      if (widget.tintColor != null) 'tint': _colorToARGB(widget.tintColor!),
     };
 
-    final toolbar = Container(
+    return AnimatedContainer(
       height: widget.height + safePadding,
-      decoration: BoxDecoration(
-        gradient: Theme.brightnessOf(context) == Brightness.light
-            ? const LinearGradient(
-                colors: [
-                  Color.fromARGB(229, 255, 255, 255),
-                  Color.fromARGB(0, 255, 255, 255),
-                ],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-              )
-            : const LinearGradient(
-                colors: [
-                  Color.fromARGB(234, 0, 0, 0),
-                  Color.fromARGB(137, 0, 0, 0),
-                  Color.fromARGB(0, 0, 0, 0),
-                ],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-              ),
-      ),
-      child: UiKitView(
-        viewType: 'adaptive_platform_ui/ios26_toolbar',
-        creationParams: creationParams,
-        creationParamsCodec: const StandardMessageCodec(),
-        onPlatformViewCreated: _onPlatformViewCreated,
-        hitTestBehavior: PlatformViewHitTestBehavior.translucent,
-        // Enable Hybrid Composition mode for better layer integration
-        gestureRecognizers: const <Factory<OneSequenceGestureRecognizer>>{},
-      ),
-    );
-
-    // If custom leading widget provided, overlay it on top of native toolbar
-    if (widget.leading != null) {
-      return SizedBox(
-        height: widget.height + safePadding,
-        child: Stack(
-          children: [
-            toolbar,
+      duration: const Duration(milliseconds: 1000),
+      curve: const IOSSpringCurve(),
+      child: Stack(
+        children: [
+          if (widget.showNativeView)
+            UiKitView(
+              viewType: 'adaptive_platform_ui/ios26_toolbar',
+              creationParams: creationParams,
+              creationParamsCodec: const StandardMessageCodec(),
+              onPlatformViewCreated: _onPlatformViewCreated,
+              hitTestBehavior: PlatformViewHitTestBehavior.translucent,
+            ),
+          if (widget.leading != null)
             Positioned(
-              left: 8,
-              top: safePadding,
-              bottom: 0,
+              left: 16,
+              bottom: 3,
               child: Align(
                 alignment: Alignment.centerLeft,
-                child: IgnorePointer(ignoring: false, child: widget.leading!),
+                child: widget.leading!,
               ),
             ),
-          ],
-        ),
-      );
-    }
-
-    return toolbar;
+          if (widget.titleWidget != null)
+            Positioned(
+              left: 0,
+              right: 0,
+              top: safePadding,
+              bottom: 0,
+              child: Center(child: widget.titleWidget!),
+            ),
+        ],
+      ),
+    );
   }
 
   void _onPlatformViewCreated(int id) {
     _channel = MethodChannel('adaptive_platform_ui/ios26_toolbar_$id');
     _channel!.setMethodCallHandler(_handleMethodCall);
+    _lastIsDark = _isDark;
+    _lastTint =
+        widget.tintColor != null ? _colorToARGB(widget.tintColor!) : null;
+    _lastActions =
+        widget.actions != null ? List.of(widget.actions!) : null;
   }
 
   Future<dynamic> _handleMethodCall(MethodCall call) async {
@@ -125,59 +218,32 @@ class _IOS26NativeToolbarState extends State<IOS26NativeToolbar> {
         break;
       case 'onActionTapped':
         if (call.arguments is Map) {
-          final args = call.arguments as Map;
-          final index = args['index'] as int?;
-          if (index != null) {
-            widget.onActionTap?.call(index);
-          }
+          final index = (call.arguments as Map)['index'] as int?;
+          if (index != null) widget.onActionTap?.call(index);
         }
         break;
     }
   }
 
-  /// Fallback toolbar for non-iOS platforms or older iOS versions
   Widget _buildFallbackToolbar() {
-    return Container(
-      height: widget.height + MediaQuery.of(context).padding.top,
-      padding: EdgeInsets.only(
-        top: MediaQuery.of(context).padding.top,
-        left: 16,
-        right: 16,
-      ),
-      decoration: BoxDecoration(
-        color: CupertinoColors.systemBackground.resolveFrom(context),
-        border: Border(
-          bottom: BorderSide(
-            color: CupertinoColors.separator.resolveFrom(context),
-            width: 0.5,
-          ),
-        ),
-      ),
-      child: Row(
-        children: [
-          if (widget.leading != null) widget.leading!,
-          const Spacer(),
-          if (widget.title != null)
-            Text(
-              widget.title!,
-              style: CupertinoTheme.of(context).textTheme.navTitleTextStyle,
-            ),
-          const Spacer(),
-          if (widget.actions != null && widget.actions!.isNotEmpty)
-            Row(
+    return CupertinoNavigationBar(
+      middle: widget.titleWidget ??
+          (widget.title != null ? Text(widget.title!) : null),
+      leading: widget.leading,
+      trailing: widget.actions != null && widget.actions!.isNotEmpty
+          ? Row(
               mainAxisSize: MainAxisSize.min,
               children: widget.actions!.map((action) {
                 return CupertinoButton(
                   padding: EdgeInsets.zero,
                   onPressed: action.onPressed,
-                  child: action.title != null
-                      ? Text(action.title!)
-                      : const Icon(CupertinoIcons.circle),
+                  child: action.icon != null
+                      ? Icon(action.icon)
+                      : Text(action.title ?? ''),
                 );
               }).toList(),
-            ),
-        ],
-      ),
+            )
+          : null,
     );
   }
 }

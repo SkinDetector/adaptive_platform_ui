@@ -1,5 +1,7 @@
+import 'package:adaptive_platform_ui_example/utils/extensions/extensions.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:adaptive_platform_ui/adaptive_platform_ui.dart';
 
 class PopupMenuDemoPage extends StatefulWidget {
@@ -13,6 +15,19 @@ class _PopupMenuDemoPageState extends State<PopupMenuDemoPage> {
   String _selectedAction = 'No selection';
   String _selectedValue = '';
   bool _editMode = false;
+  Uint8List? _avatarBytes;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAvatar();
+  }
+
+  Future<void> _loadAvatar() async {
+    final data = await rootBundle.load('assets/icons/user.png');
+    if (!mounted) return;
+    setState(() => _avatarBytes = data.buffer.asUint8List());
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -350,8 +365,8 @@ class _PopupMenuDemoPageState extends State<PopupMenuDemoPage> {
                 ),
                 decoration: BoxDecoration(
                   color: _editMode
-                      ? CupertinoColors.systemYellow.withValues(alpha: 0.2)
-                      : CupertinoColors.systemGreen.withValues(alpha: 0.2),
+                      ? CupertinoColors.systemYellow.withOpacityValue(0.2)
+                      : CupertinoColors.systemGreen.withOpacityValue(0.2),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
                     color: _editMode
@@ -527,6 +542,73 @@ class _PopupMenuDemoPageState extends State<PopupMenuDemoPage> {
       ]),
       const SizedBox(height: 24),
 
+      // Subtitle + image items
+      _buildSection('Subtitles & Images', [
+        _buildDemo(
+          'With Subtitles',
+          AdaptivePopupMenuButton.text<String>(
+            label: 'Accounts',
+            items: const [
+              AdaptivePopupMenuItem(
+                label: 'Personal',
+                subtitle: 'me@example.com',
+                value: 'personal',
+              ),
+              AdaptivePopupMenuItem(
+                label: 'Work',
+                subtitle: 'work@example.com',
+                value: 'work',
+              ),
+              AdaptivePopupMenuDivider(),
+              AdaptivePopupMenuItem(
+                label: 'Add account',
+                value: 'add',
+              ),
+            ],
+            onSelected: (index, item) {
+              setState(() {
+                _selectedAction = item.label;
+                _selectedValue = item.value ?? '';
+              });
+            },
+            buttonStyle: PopupButtonStyle.bordered,
+          ),
+        ),
+        _buildDemo(
+          'With Avatar Images',
+          AdaptivePopupMenuButton.text<String>(
+            label: 'Assignee',
+            items: [
+              AdaptivePopupMenuItem(
+                label: 'Jamie Doe',
+                subtitle: 'Online',
+                imageBytes: _avatarBytes,
+                value: 'jamie',
+              ),
+              AdaptivePopupMenuItem(
+                label: 'Alex Smith',
+                subtitle: 'Away',
+                imageBytes: _avatarBytes,
+                value: 'alex',
+              ),
+              const AdaptivePopupMenuDivider(),
+              const AdaptivePopupMenuItem(
+                label: 'Unassigned',
+                value: 'none',
+              ),
+            ],
+            onSelected: (index, item) {
+              setState(() {
+                _selectedAction = item.label;
+                _selectedValue = item.value ?? '';
+              });
+            },
+            buttonStyle: PopupButtonStyle.tinted,
+          ),
+        ),
+      ]),
+      const SizedBox(height: 24),
+
       // Custom Tint Colors
       _buildSection('Custom Tint Colors', [
         Wrap(
@@ -681,7 +763,7 @@ class _PopupMenuDemoPageState extends State<PopupMenuDemoPage> {
                     width: 36,
                     height: 36,
                     decoration: BoxDecoration(
-                      color: CupertinoColors.systemPurple.withValues(alpha: 0.1),
+                      color: CupertinoColors.systemPurple.withOpacityValue(0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(
@@ -760,7 +842,7 @@ class _PopupMenuDemoPageState extends State<PopupMenuDemoPage> {
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: CupertinoColors.systemBlue.withValues(alpha: 0.3),
+                    color: CupertinoColors.systemBlue.withOpacityValue(0.3),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),

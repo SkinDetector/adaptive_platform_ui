@@ -17,6 +17,8 @@ class IOS26NativeTabBar extends StatefulWidget {
     this.backgroundColor,
     this.height,
     this.minimizeBehavior = TabBarMinimizeBehavior.automatic,
+    this.showNativeView = true,
+    this.hidden = false,
   });
 
   final List<AdaptiveNavigationDestination> destinations;
@@ -26,6 +28,12 @@ class IOS26NativeTabBar extends StatefulWidget {
   final Color? unselectedItemTint;
   final Color? backgroundColor;
   final double? height;
+  final bool showNativeView;
+
+  /// Whether the native tab bar is hidden.
+  /// Use this to hide the tab bar when showing modal bottom sheets
+  /// to prevent native platform views from bleeding through.
+  final bool hidden;
 
   /// Tab bar minimize behavior (iOS 26+)
   /// Controls how the tab bar minimizes when scrolling
@@ -42,14 +50,24 @@ class _IOS26NativeTabBarState extends State<IOS26NativeTabBar> {
   int? _lastUnselectedTint;
   int? _lastBg;
   bool? _lastIsDark;
+  bool? _lastIsRtl;
   double? _intrinsicHeight;
   List<String>? _lastLabels;
   List<String>? _lastSymbols;
+  List<String>? _lastSelectedSymbols;
+  List<String>? _lastAssetIcons;
+  List<String>? _lastSelectedAssetIcons;
+  List<String>? _lastFileIcons;
+  List<String>? _lastSelectedFileIcons;
+  List<String>? _lastNetworkIcons;
+  List<String>? _lastSelectedNetworkIcons;
   List<int?>? _lastBadgeCounts;
   TabBarMinimizeBehavior? _lastMinimizeBehavior;
+  bool? _lastHidden;
 
   bool get _isDark =>
       MediaQuery.platformBrightnessOf(context) == Brightness.dark;
+  bool get _isRtl => Directionality.of(context) == TextDirection.rtl;
   Color? get _effectiveTint =>
       widget.tint ?? CupertinoTheme.of(context).primaryColor;
 
@@ -63,6 +81,7 @@ class _IOS26NativeTabBarState extends State<IOS26NativeTabBar> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     _syncBrightnessIfNeeded();
+    _syncDirectionalityIfNeeded();
     _syncPropsToNativeIfNeeded();
   }
 
@@ -89,15 +108,81 @@ class _IOS26NativeTabBarState extends State<IOS26NativeTabBar> {
         ((resolvedColor.b * 255.0).round() & 0xff);
   }
 
+  /// Extract SF Symbol name from an icon value.
+  /// Returns empty string for non-SF-Symbol icons (asset paths, IconData, widgets).
+  String _extractSymbol(Object? icon) {
+    if (icon is String && !icon.contains('/')) return icon;
+    return '';
+  }
+
+  /// Extract asset path from an icon value.
+  /// Supports AssetImage, ImageIcon(AssetImage), and string paths containing '/'.
+  /// Returns empty string for SF Symbols or other icon types.
+  String _extractAssetPath(Object? icon) {
+    if (icon is AssetImage) return icon.assetName;
+    if (icon is ImageIcon && icon.image is AssetImage) {
+      return (icon.image as AssetImage).assetName;
+    }
+    if (icon is String && icon.contains('/')) return icon;
+    return '';
+  }
+
+  String _extractFilePath(Object? icon) {
+    if (icon is FileImage) return icon.file.path;
+    if (icon is ImageIcon && icon.image is FileImage) {
+      return (icon.image as FileImage).file.path;
+    }
+    return '';
+  }
+
+  String _extractNetworkUrl(Object? icon) {
+    if (icon is NetworkImage) return icon.url;
+    if (icon is ImageIcon && icon.image is NetworkImage) {
+      return (icon.image as NetworkImage).url;
+    }
+    return '';
+  }
+
+  List<String> _mapSymbols() =>
+      widget.destinations.map((e) => _extractSymbol(e.icon)).toList();
+
+  List<String> _mapSelectedSymbols() => widget.destinations
+      .map((e) => _extractSymbol(e.selectedIcon ?? e.icon))
+      .toList();
+
+  List<String> _mapAssetIcons() =>
+      widget.destinations.map((e) => _extractAssetPath(e.icon)).toList();
+
+  List<String> _mapSelectedAssetIcons() => widget.destinations
+      .map((e) => _extractAssetPath(e.selectedIcon ?? e.icon))
+      .toList();
+
+  List<String> _mapFileIcons() =>
+      widget.destinations.map((e) => _extractFilePath(e.icon)).toList();
+
+  List<String> _mapSelectedFileIcons() => widget.destinations
+      .map((e) => _extractFilePath(e.selectedIcon ?? e.icon))
+      .toList();
+
+  List<String> _mapNetworkIcons() =>
+      widget.destinations.map((e) => _extractNetworkUrl(e.icon)).toList();
+
+  List<String> _mapSelectedNetworkIcons() => widget.destinations
+      .map((e) => _extractNetworkUrl(e.selectedIcon ?? e.icon))
+      .toList();
+
   @override
   Widget build(BuildContext context) {
     if (!kIsWeb && Platform.isIOS) {
       final labels = widget.destinations.map((e) => e.label).toList();
-      final symbols = widget.destinations.map((e) {
-        final icon = e.icon;
-        if (icon is String) return icon;
-        return '';
-      }).toList();
+      final symbols = _mapSymbols();
+      final selectedSymbols = _mapSelectedSymbols();
+      final assetIcons = _mapAssetIcons();
+      final selectedAssetIcons = _mapSelectedAssetIcons();
+      final fileIcons = _mapFileIcons();
+      final selectedFileIcons = _mapSelectedFileIcons();
+      final networkIcons = _mapNetworkIcons();
+      final selectedNetworkIcons = _mapSelectedNetworkIcons();
 
       final searchFlags = widget.destinations.map((e) => e.isSearch).toList();
       final badgeCounts = widget.destinations.map((e) => e.badgeCount).toList();
@@ -108,11 +193,19 @@ class _IOS26NativeTabBarState extends State<IOS26NativeTabBar> {
       final creationParams = <String, dynamic>{
         'labels': labels,
         'sfSymbols': symbols,
+        'selectedSfSymbols': selectedSymbols,
+        'assetIcons': assetIcons,
+        'selectedAssetIcons': selectedAssetIcons,
+        'fileIcons': fileIcons,
+        'selectedFileIcons': selectedFileIcons,
+        'networkIcons': networkIcons,
+        'selectedNetworkIcons': selectedNetworkIcons,
         'searchFlags': searchFlags,
         'badgeCounts': badgeCounts,
         'spacerFlags': spacerFlags,
         'selectedIndex': widget.selectedIndex,
         'isDark': _isDark,
+        'isRtl': _isRtl,
         'minimizeBehavior': widget.minimizeBehavior.index,
         if (_effectiveTint != null) 'tint': _colorToARGB(_effectiveTint!),
         if (widget.unselectedItemTint != null)
@@ -121,15 +214,17 @@ class _IOS26NativeTabBarState extends State<IOS26NativeTabBar> {
           'backgroundColor': _colorToARGB(widget.backgroundColor!),
       };
 
-      final platformView = UiKitView(
-        viewType: 'adaptive_platform_ui/ios26_tab_bar',
-        creationParams: creationParams,
-        creationParamsCodec: const StandardMessageCodec(),
-        onPlatformViewCreated: _onCreated,
-        gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
-          Factory<TapGestureRecognizer>(() => TapGestureRecognizer()),
-        },
-      );
+      final platformView = widget.showNativeView
+          ? UiKitView(
+              viewType: 'adaptive_platform_ui/ios26_tab_bar',
+              creationParams: creationParams,
+              creationParamsCodec: const StandardMessageCodec(),
+              onPlatformViewCreated: _onCreated,
+              gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+                Factory<TapGestureRecognizer>(() => TapGestureRecognizer()),
+              },
+            )
+          : const SizedBox.shrink();
 
       final h = widget.height ?? _intrinsicHeight ?? 50.0;
       return SizedBox(height: h, child: platformView);
@@ -180,7 +275,7 @@ class _IOS26NativeTabBarState extends State<IOS26NativeTabBar> {
     final ch = MethodChannel('adaptive_platform_ui/ios26_tab_bar_$id');
     _channel = ch;
     ch.setMethodCallHandler(_onMethodCall);
-    _lastIndex = widget.selectedIndex;
+    _lastIndex = null;
     _lastTint = _effectiveTint != null ? _colorToARGB(_effectiveTint!) : null;
     _lastUnselectedTint = widget.unselectedItemTint != null
         ? _colorToARGB(widget.unselectedItemTint!)
@@ -189,9 +284,14 @@ class _IOS26NativeTabBarState extends State<IOS26NativeTabBar> {
         ? _colorToARGB(widget.backgroundColor!)
         : null;
     _lastIsDark = _isDark;
+    _lastIsRtl = _isRtl;
     _lastMinimizeBehavior = widget.minimizeBehavior;
     _requestIntrinsicSize();
     _cacheItems();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _channel != ch) return;
+      _pushInitialStateToNative(ch);
+    });
   }
 
   Future<dynamic> _onMethodCall(MethodCall call) async {
@@ -243,25 +343,50 @@ class _IOS26NativeTabBarState extends State<IOS26NativeTabBar> {
 
     // Items update (for hot reload or dynamic changes)
     final labels = widget.destinations.map((e) => e.label).toList();
-    final symbols = widget.destinations.map((e) {
-      final icon = e.icon;
-      if (icon is String) return icon;
-      return '';
-    }).toList();
+    final symbols = _mapSymbols();
+    final selectedSymbols = _mapSelectedSymbols();
+    final assetIcons = _mapAssetIcons();
+    final selectedAssetIcons = _mapSelectedAssetIcons();
+    final fileIcons = _mapFileIcons();
+    final selectedFileIcons = _mapSelectedFileIcons();
+    final networkIcons = _mapNetworkIcons();
+    final selectedNetworkIcons = _mapSelectedNetworkIcons();
     final searchFlags = widget.destinations.map((e) => e.isSearch).toList();
     final badgeCounts = widget.destinations.map((e) => e.badgeCount).toList();
 
     if (_lastLabels?.join('|') != labels.join('|') ||
-        _lastSymbols?.join('|') != symbols.join('|')) {
+        _lastSymbols?.join('|') != symbols.join('|') ||
+        _lastSelectedSymbols?.join('|') != selectedSymbols.join('|') ||
+        _lastAssetIcons?.join('|') != assetIcons.join('|') ||
+        _lastSelectedAssetIcons?.join('|') != selectedAssetIcons.join('|') ||
+        _lastFileIcons?.join('|') != fileIcons.join('|') ||
+        _lastSelectedFileIcons?.join('|') != selectedFileIcons.join('|') ||
+        _lastNetworkIcons?.join('|') != networkIcons.join('|') ||
+        _lastSelectedNetworkIcons?.join('|') !=
+            selectedNetworkIcons.join('|')) {
       await ch.invokeMethod('setItems', {
         'labels': labels,
         'sfSymbols': symbols,
+        'selectedSfSymbols': selectedSymbols,
+        'assetIcons': assetIcons,
+        'selectedAssetIcons': selectedAssetIcons,
+        'fileIcons': fileIcons,
+        'selectedFileIcons': selectedFileIcons,
+        'networkIcons': networkIcons,
+        'selectedNetworkIcons': selectedNetworkIcons,
         'searchFlags': searchFlags,
         'badgeCounts': badgeCounts,
         'selectedIndex': widget.selectedIndex,
       });
       _lastLabels = labels;
       _lastSymbols = symbols;
+      _lastSelectedSymbols = selectedSymbols;
+      _lastAssetIcons = assetIcons;
+      _lastSelectedAssetIcons = selectedAssetIcons;
+      _lastFileIcons = fileIcons;
+      _lastSelectedFileIcons = selectedFileIcons;
+      _lastNetworkIcons = networkIcons;
+      _lastSelectedNetworkIcons = selectedNetworkIcons;
       _requestIntrinsicSize();
     }
 
@@ -283,6 +408,9 @@ class _IOS26NativeTabBarState extends State<IOS26NativeTabBar> {
       });
       _lastMinimizeBehavior = widget.minimizeBehavior;
     }
+
+    // Hidden state update
+    await _syncHiddenIfNeeded();
   }
 
   Future<void> _syncBrightnessIfNeeded() async {
@@ -295,14 +423,36 @@ class _IOS26NativeTabBarState extends State<IOS26NativeTabBar> {
     }
   }
 
+  Future<void> _syncDirectionalityIfNeeded() async {
+    final ch = _channel;
+    if (ch == null) return;
+    final isRtl = _isRtl;
+    if (_lastIsRtl != isRtl) {
+      await ch.invokeMethod('setDirectionality', {'isRtl': isRtl});
+      _lastIsRtl = isRtl;
+    }
+  }
+
   void _cacheItems() {
     _lastLabels = widget.destinations.map((e) => e.label).toList();
-    _lastSymbols = widget.destinations.map((e) {
-      final icon = e.icon;
-      if (icon is String) return icon;
-      return '';
-    }).toList();
+    _lastSymbols = _mapSymbols();
+    _lastSelectedSymbols = _mapSelectedSymbols();
+    _lastAssetIcons = _mapAssetIcons();
+    _lastSelectedAssetIcons = _mapSelectedAssetIcons();
+    _lastFileIcons = _mapFileIcons();
+    _lastSelectedFileIcons = _mapSelectedFileIcons();
+    _lastNetworkIcons = _mapNetworkIcons();
+    _lastSelectedNetworkIcons = _mapSelectedNetworkIcons();
     _lastBadgeCounts = widget.destinations.map((e) => e.badgeCount).toList();
+  }
+
+  Future<void> _syncHiddenIfNeeded() async {
+    final ch = _channel;
+    if (ch == null) return;
+    final hidden = widget.hidden;
+    if (_lastHidden == hidden) return;
+    await ch.invokeMethod('setHidden', {'hidden': hidden});
+    _lastHidden = hidden;
   }
 
   Future<void> _requestIntrinsicSize() async {
@@ -316,6 +466,55 @@ class _IOS26NativeTabBarState extends State<IOS26NativeTabBar> {
       setState(() {
         if (h != null && h > 0) _intrinsicHeight = h;
       });
+    } catch (_) {}
+  }
+
+  Future<void> _pushInitialStateToNative(MethodChannel ch) async {
+    final labels = widget.destinations.map((e) => e.label).toList();
+    final symbols = _mapSymbols();
+    final selectedSymbols = _mapSelectedSymbols();
+    final assetIcons = _mapAssetIcons();
+    final selectedAssetIcons = _mapSelectedAssetIcons();
+    final fileIcons = _mapFileIcons();
+    final selectedFileIcons = _mapSelectedFileIcons();
+    final networkIcons = _mapNetworkIcons();
+    final selectedNetworkIcons = _mapSelectedNetworkIcons();
+    final searchFlags = widget.destinations.map((e) => e.isSearch).toList();
+    final badgeCounts = widget.destinations.map((e) => e.badgeCount).toList();
+
+    try {
+      await ch.invokeMethod('setItems', {
+        'labels': labels,
+        'sfSymbols': symbols,
+        'selectedSfSymbols': selectedSymbols,
+        'assetIcons': assetIcons,
+        'selectedAssetIcons': selectedAssetIcons,
+        'fileIcons': fileIcons,
+        'selectedFileIcons': selectedFileIcons,
+        'networkIcons': networkIcons,
+        'selectedNetworkIcons': selectedNetworkIcons,
+        'searchFlags': searchFlags,
+        'badgeCounts': badgeCounts,
+        'selectedIndex': widget.selectedIndex,
+      });
+
+      final style = <String, dynamic>{};
+      if (_effectiveTint != null) {
+        style['tint'] = _colorToARGB(_effectiveTint!);
+      }
+      if (widget.unselectedItemTint != null) {
+        style['unselectedItemTint'] = _colorToARGB(widget.unselectedItemTint!);
+      }
+      if (widget.backgroundColor != null) {
+        style['backgroundColor'] = _colorToARGB(widget.backgroundColor!);
+      }
+      if (style.isNotEmpty) {
+        await ch.invokeMethod('setStyle', style);
+      }
+
+      await ch.invokeMethod('setSelectedIndex', {'index': widget.selectedIndex});
+      _lastIndex = widget.selectedIndex;
+      await _requestIntrinsicSize();
     } catch (_) {}
   }
 }

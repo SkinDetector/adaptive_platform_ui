@@ -22,12 +22,15 @@ class AdaptiveAppBarAction {
   const AdaptiveAppBarAction({
     this.iosSymbol,
     this.icon,
+    this.iconWidget,
     this.title,
     required this.onPressed,
     this.spacerAfter = ToolbarSpacerType.none,
+    this.prominent = false,
+    this.tintColor,
   }) : assert(
-         iosSymbol != null || icon != null || title != null,
-         'At least one of iosSymbol, icon, or title must be provided',
+         iosSymbol != null || icon != null || iconWidget != null || title != null,
+         'At least one of iosSymbol, icon, iconWidget, or title must be provided',
        );
 
   /// SF Symbol name for iOS 26+ ONLY (e.g., 'info.circle', 'plus.circle')
@@ -41,6 +44,10 @@ class AdaptiveAppBarAction {
   /// - iOS <26: Used for CupertinoButton
   /// - Android: Used for IconButton
   final IconData? icon;
+
+  /// Custom icon widget for iOS <26 and Android (e.g., SvgPicture.asset)
+  /// If provided, this widget is used instead of the icon parameter.
+  final Widget? iconWidget;
 
   /// Text title for the action (optional)
   /// If provided along with icons, title takes precedence
@@ -65,17 +72,31 @@ class AdaptiveAppBarAction {
   /// ```
   final ToolbarSpacerType spacerAfter;
 
+  /// Display this action with a prominent glass background (iOS 26+ only)
+  /// - iOS 26+: Uses UIBarButtonItem.Style.prominent for a tinted glass bubble
+  /// - iOS <26 / Android: Ignored
+  final bool prominent;
+
+  /// Per-action tint color (iOS 26+ only)
+  /// Overrides the global AdaptiveAppBar.tintColor for this specific action.
+  /// Useful for highlighting individual buttons (e.g., green call button).
+  /// - iOS <26 / Android: Ignored
+  final Color? tintColor;
+
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
     return other is AdaptiveAppBarAction &&
         other.iosSymbol == iosSymbol &&
         other.icon == icon &&
-        other.title == title;
+        other.iconWidget == iconWidget &&
+        other.title == title &&
+        other.prominent == prominent &&
+        other.tintColor == tintColor;
   }
 
   @override
-  int get hashCode => Object.hash(iosSymbol, icon, title);
+  int get hashCode => Object.hash(iosSymbol, icon, iconWidget, title, prominent, tintColor);
 
   /// Convert action to map for native platform channel (iOS 26+ only)
   Map<String, dynamic> toNativeMap() {
@@ -83,6 +104,8 @@ class AdaptiveAppBarAction {
       if (iosSymbol != null) 'icon': iosSymbol!,
       if (title != null) 'title': title!,
       'spacerAfter': spacerAfter.index, // 0=none, 1=fixed, 2=flexible
+      if (prominent) 'prominent': true,
+      if (tintColor != null) 'tint': tintColor!.toARGB32(),
     };
   }
 }

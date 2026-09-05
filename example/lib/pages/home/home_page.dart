@@ -305,6 +305,25 @@ class _HomePageState extends State<HomePage> {
                 routeName: RouterService.routes.expansionTile,
                 isNew: true,
               ),
+              _DemoItem(
+                icon: PlatformInfo.isIOS
+                    ? CupertinoIcons.sidebar_left
+                    : Icons.menu,
+                title: 'Drawer',
+                description:
+                    'Navigation drawers with adaptive scaffold support',
+                routeName: RouterService.routes.drawer,
+                isNew: true,
+              ),
+              _DemoItem(
+                icon: PlatformInfo.isIOS
+                    ? CupertinoIcons.arrow_right_arrow_left
+                    : Icons.navigation,
+                title: 'Navigation',
+                description: 'Multi-page navigation chain (Page 1 → 2 → 3)',
+                routeName: RouterService.routes.navigationPage1,
+                isNew: true,
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -320,6 +339,26 @@ class _HomePageState extends State<HomePage> {
                 isCritical: true,
                 description: 'Native UIVisualEffectView with Liquid Glass',
                 routeName: RouterService.routes.blurView,
+                isNew: true,
+              ),
+              _DemoItem(
+                icon: PlatformInfo.isIOS
+                    ? CupertinoIcons.paintbrush
+                    : Icons.color_lens,
+                title: 'Toolbar Tint',
+                description:
+                    'Tint color and prominent buttons for native toolbar',
+                routeName: RouterService.routes.toolbarTint,
+                isNew: true,
+              ),
+              _DemoItem(
+                icon: PlatformInfo.isIOS
+                    ? CupertinoIcons.textformat
+                    : Icons.title,
+                title: 'App Bar Title',
+                description:
+                    'Subtitle and custom titleWidget in the app bar',
+                routeName: RouterService.routes.appBarTitle,
                 isNew: true,
               ),
               _DemoItem(

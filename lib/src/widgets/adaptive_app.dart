@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../platform/platform_info.dart';
 
 /// Platform-specific configuration for MaterialApp
@@ -101,6 +102,7 @@ class AdaptiveApp extends StatelessWidget {
     this.supportedLocales = const <Locale>[Locale('en', 'US')],
     this.material,
     this.cupertino,
+    this.scaffoldMessengerKey,
   }) : routerConfig = null,
        routeInformationProvider = null,
        routeInformationParser = null,
@@ -130,6 +132,7 @@ class AdaptiveApp extends StatelessWidget {
     this.supportedLocales = const <Locale>[Locale('en', 'US')],
     this.material,
     this.cupertino,
+    this.scaffoldMessengerKey,
   }) : navigatorKey = null,
        home = null,
        routes = const <String, WidgetBuilder>{},
@@ -230,6 +233,10 @@ class AdaptiveApp extends StatelessWidget {
   /// ```
   final CupertinoAppData Function(BuildContext, PlatformTarget)? cupertino;
 
+  /// Global key used to access the [ScaffoldMessengerState], for example
+  /// to show SnackBars or material banners from outside the widget tree.
+  final GlobalKey<ScaffoldMessengerState>? scaffoldMessengerKey;
+
   @override
   Widget build(BuildContext context) {
     final platform = _detectPlatform();
@@ -292,7 +299,15 @@ class AdaptiveApp extends StatelessWidget {
         data: MediaQuery.of(
           context,
         ).copyWith(platformBrightness: effectiveBrightness),
-        child: CupertinoTheme(data: theme, child: child!),
+        // Keep the status bar legible: light icons on dark backgrounds and
+        // vice versa. Without this, forcing a ThemeMode that differs from the
+        // system brightness leaves the status bar in the wrong style.
+        child: AnnotatedRegion<SystemUiOverlayStyle>(
+          value: isDark
+              ? SystemUiOverlayStyle.light
+              : SystemUiOverlayStyle.dark,
+          child: CupertinoTheme(data: theme, child: child!),
+        ),
       );
     }
 
@@ -409,6 +424,7 @@ class AdaptiveApp extends StatelessWidget {
         scrollBehavior: config.scrollBehavior,
         highContrastTheme: config.highContrastTheme,
         highContrastDarkTheme: config.highContrastDarkTheme,
+        scaffoldMessengerKey: scaffoldMessengerKey,
       );
     }
 
@@ -446,6 +462,7 @@ class AdaptiveApp extends StatelessWidget {
       scrollBehavior: config.scrollBehavior,
       highContrastTheme: config.highContrastTheme,
       highContrastDarkTheme: config.highContrastDarkTheme,
+      scaffoldMessengerKey: scaffoldMessengerKey,
     );
   }
 

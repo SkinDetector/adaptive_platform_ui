@@ -12,6 +12,7 @@ import 'package:adaptive_platform_ui_example/pages/demos/context_menu_demo_page.
 import 'package:adaptive_platform_ui_example/pages/demos/demo_tabbar_page.dart';
 import 'package:adaptive_platform_ui_example/pages/demos/native_search_tab_demo_page.dart';
 import 'package:adaptive_platform_ui_example/pages/demos/popup_menu_demo_page.dart';
+import 'package:adaptive_platform_ui_example/pages/demos/appbar_title_demo_page.dart';
 import 'package:adaptive_platform_ui_example/pages/demos/radio_demo_page.dart';
 import 'package:adaptive_platform_ui_example/pages/demos/segmented_control_demo_page.dart';
 import 'package:adaptive_platform_ui_example/pages/demos/slider_demo_page.dart';
@@ -27,6 +28,11 @@ import 'package:adaptive_platform_ui_example/pages/demos/floating_action_button_
 import 'package:adaptive_platform_ui_example/pages/demos/form_section_demo_page.dart';
 import 'package:adaptive_platform_ui_example/pages/demos/expansion_tile_demo_page.dart';
 import 'package:adaptive_platform_ui_example/pages/demos/blur_view_demo_page.dart';
+import 'package:adaptive_platform_ui_example/pages/demos/drawer_demo_page.dart';
+import 'package:adaptive_platform_ui_example/pages/demos/toolbar_tint_demo_page.dart';
+import 'package:adaptive_platform_ui_example/pages/demos/navigation_page1.dart';
+import 'package:adaptive_platform_ui_example/pages/demos/navigation_page2.dart';
+import 'package:adaptive_platform_ui_example/pages/demos/navigation_page3.dart';
 import 'package:adaptive_platform_ui_example/utils/constants/route_constants.dart';
 import 'package:adaptive_platform_ui_example/utils/global_variables.dart';
 import 'package:flutter/material.dart';
@@ -240,6 +246,43 @@ class RouterService {
                     name: routes.blurView,
                     path: routes.blurView,
                     builder: (context, state) => const BlurViewDemoPage(),
+                  ),
+                  GoRoute(
+                    name: routes.drawer,
+                    path: routes.drawer,
+                    builder: (context, state) => const DrawerDemoPage(),
+                  ),
+                  GoRoute(
+                    name: routes.toolbarTint,
+                    path: routes.toolbarTint,
+                    builder: (context, state) =>
+                        const ToolbarTintDemoPage(),
+                  ),
+                  GoRoute(
+                    name: routes.appBarTitle,
+                    path: routes.appBarTitle,
+                    builder: (context, state) =>
+                        const AppBarTitleDemoPage(),
+                  ),
+                  GoRoute(
+                    name: routes.navigationPage1,
+                    path: routes.navigationPage1,
+                    builder: (context, state) => const NavigationPage1(),
+                    routes: [
+                      GoRoute(
+                        name: routes.navigationPage2,
+                        path: routes.navigationPage2,
+                        builder: (context, state) => const NavigationPage2(),
+                        routes: [
+                          GoRoute(
+                            name: routes.navigationPage3,
+                            path: routes.navigationPage3,
+                            builder: (context, state) =>
+                                const NavigationPage3(),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ],
               ),

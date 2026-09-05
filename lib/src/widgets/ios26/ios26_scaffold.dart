@@ -1,9 +1,16 @@
 import 'package:flutter/cupertino.dart';
+import '../../style/sf_symbol.dart';
 import '../adaptive_app_bar_action.dart';
 import '../adaptive_bottom_navigation_bar.dart';
+import '../adaptive_button.dart';
 import '../adaptive_scaffold.dart';
 import 'ios26_native_tab_bar.dart';
 import 'ios26_native_toolbar.dart';
+
+/// Height of the iOS 26 Liquid Glass toolbar's content area (excluding the
+/// status bar), matching [IOS26NativeToolbar]'s default height. The toolbar is
+/// an overlay, so this amount is added to the body's top padding.
+const double kToolbarContentHeight = 44.0;
 
 /// Native iOS 26 scaffold with UITabBar
 class IOS26Scaffold extends StatefulWidget {
@@ -13,8 +20,13 @@ class IOS26Scaffold extends StatefulWidget {
     this.title,
     this.actions,
     this.leading,
+    this.tintColor,
+    this.titleWidget,
     this.minimizeBehavior = TabBarMinimizeBehavior.automatic,
     this.enableBlur = true,
+    this.useHeroBackButton = true,
+    this.tabBarHidden = false,
+    this.resizeToAvoidBottomInset,
     required this.children,
   });
 
@@ -22,8 +34,16 @@ class IOS26Scaffold extends StatefulWidget {
   final String? title;
   final List<AdaptiveAppBarAction>? actions;
   final Widget? leading;
+  final Color? tintColor;
+
+  /// Custom widget overlaid at the toolbar's title position.
+  /// When set, the native title is hidden and this widget is centered instead.
+  final Widget? titleWidget;
   final TabBarMinimizeBehavior minimizeBehavior;
   final bool enableBlur;
+  final bool useHeroBackButton;
+  final bool tabBarHidden;
+  final bool? resizeToAvoidBottomInset;
   final List<Widget> children;
 
   @override
@@ -98,12 +118,29 @@ class _IOS26ScaffoldState extends State<IOS26Scaffold>
     }
   }
 
+  /// Determines if the current window is in a windowed mode.
+  ///
+  /// This method compares the display size of the device with the viewport size
+  /// calculated from the logical size and device pixel ratio.
+  /// It returns true if the sizes do not match, indicating that the application is not in full-screen mode.
+  bool _getIsWindowed() {
+    final displaySize = View.of(context).display.size;
+    final logicalSize = MediaQuery.sizeOf(context);
+    final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
+    final viewportSize = Size(
+      logicalSize.width * devicePixelRatio,
+      logicalSize.height * devicePixelRatio,
+    );
+
+    return (displaySize.longestSide != viewportSize.longestSide) ||
+        (displaySize.shortestSide != viewportSize.shortestSide);
+  }
+
   @override
   Widget build(BuildContext context) {
     // Auto back button logic
-    // Priority: custom leading widget > auto back button
-    String? leadingText;
-    VoidCallback? leadingCallback;
+    // Priority: custom leading widget > Hero back button
+    Widget? heroLeading;
 
     final canPop = Navigator.of(context).canPop();
 
@@ -112,18 +149,51 @@ class _IOS26ScaffoldState extends State<IOS26Scaffold>
         (widget.bottomNavigationBar?.items == null ||
             widget.bottomNavigationBar!.items!.isEmpty) &&
         canPop) {
-      leadingText = ''; // Empty string = native chevron
-      leadingCallback = () {
-        Navigator.of(context).pop();
-      };
+      final isCurrent = ModalRoute.of(context)?.isCurrent ?? true;
+      if (isCurrent) {
+        final backButton = Container(
+          // 62px accounts for the iPadOS system window toolbar width in windowed mode
+          margin: EdgeInsets.only(left: _getIsWindowed() ? 62 : 0),
+          height: 38,
+          width: 38,
+          child: AdaptiveButton.sfSymbol(
+            onPressed: () => Navigator.of(context).pop(),
+            sfSymbol: SFSymbol("chevron.left", size: 20),
+          ),
+        );
+        heroLeading = widget.useHeroBackButton
+            ? Hero(
+                tag: 'adaptive_back_button',
+                flightShuttleBuilder: (_, __, ___, ____, toHeroContext) =>
+                    toHeroContext.widget,
+                child: backButton,
+              )
+            : backButton;
+      } else {
+        const placeholder = SizedBox(height: 38, width: 38);
+        heroLeading = widget.useHeroBackButton
+            ? const Hero(tag: 'adaptive_back_button', child: placeholder)
+            : placeholder;
+      }
     }
 
-    // Determine if toolbar should be shown
+    // Determine if toolbar/tab bar's underlying UiKitView should be shown.
+    // Hide native platform views when another route is pushed on top to prevent bleed-through.
+    final isCurrentRoute = ModalRoute.of(context)?.isCurrent ?? true;
+    final isPopping =
+        ModalRoute.of(context)?.animation?.status == AnimationStatus.reverse;
+
+    // The Flutter widgets (like Hero) should ALWAYS stay in the tree during transitions.
+    // Only the underlying UiKitView should be hidden.
     final hasToolbarContent =
-        widget.title != null ||
+        (widget.title != null ||
+        widget.titleWidget != null ||
         widget.leading != null ||
-        leadingText != null ||
-        (widget.actions != null && widget.actions!.isNotEmpty);
+        heroLeading != null ||
+        (widget.actions != null && widget.actions!.isNotEmpty));
+
+    // Show native view only if it's the current route OR it's popping
+    final showNativeView = isCurrentRoute || isPopping;
 
     // Get brightness and determine text color
     final brightness = MediaQuery.platformBrightnessOf(context);
@@ -131,24 +201,46 @@ class _IOS26ScaffoldState extends State<IOS26Scaffold>
         ? CupertinoColors.white
         : CupertinoColors.black;
 
+    // Content - full screen - use KeepAlive to prevent rebuild
+    // Wrap content with DefaultTextStyle to ensure proper text color
+    Widget bodyContent = DefaultTextStyle(
+      style: TextStyle(
+        color: textColor,
+        fontSize: 17, // iOS default
+      ),
+      child: widget.children.length == 1
+          ? widget.children.first
+          : IndexedStack(
+              index: widget.bottomNavigationBar?.selectedIndex ?? 0,
+              sizing: StackFit.expand,
+              children: widget.children,
+            ),
+    );
+
+    // The Liquid Glass toolbar is drawn as a Positioned overlay on top of the
+    // body (see below), so — unlike CupertinoPageScaffold with a translucent
+    // nav bar — it does NOT inset the body automatically. Mirror that framework
+    // behaviour here by adding the toolbar's height to the body's top padding,
+    // so any SafeArea/SliverSafeArea inside a page clears the toolbar without
+    // per-screen offset hacks. Content still scrolls behind it (scroll-edge
+    // effect) because SafeArea insets rather than clips.
+    if (hasToolbarContent) {
+      final mq = MediaQuery.of(context);
+      bodyContent = MediaQuery(
+        data: mq.copyWith(
+          padding:
+              mq.padding.copyWith(top: mq.padding.top + kToolbarContentHeight),
+          viewPadding: mq.viewPadding
+              .copyWith(top: mq.viewPadding.top + kToolbarContentHeight),
+        ),
+        child: bodyContent,
+      );
+    }
+
     // Build the stack content
     final stackContent = Stack(
       children: [
-        // Content - full screen - use KeepAlive to prevent rebuild
-        // Wrap content with DefaultTextStyle to ensure proper text color
-        DefaultTextStyle(
-          style: TextStyle(
-            color: textColor,
-            fontSize: 17, // iOS default
-          ),
-          child: widget.children.length == 1
-              ? widget.children.first
-              : IndexedStack(
-                  index: widget.bottomNavigationBar?.selectedIndex ?? 0,
-                  sizing: StackFit.expand,
-                  children: widget.children,
-                ),
-        ),
+        bodyContent,
         // Top toolbar - iOS 26 Liquid Glass style - only show if there's content
         if (hasToolbarContent)
           Positioned(
@@ -157,10 +249,11 @@ class _IOS26ScaffoldState extends State<IOS26Scaffold>
             top: 0,
             child: IOS26NativeToolbar(
               title: widget.title,
-              leading: widget.leading, // Custom leading widget has priority
-              leadingText: leadingText,
+              leading: widget.leading ?? heroLeading,
+              showNativeView: showNativeView,
               actions: widget.actions,
-              onLeadingTap: leadingCallback,
+              tintColor: widget.tintColor,
+              titleWidget: widget.titleWidget,
               onActionTap: (index) {
                 // Call the appropriate action callback
                 if (widget.actions != null &&
@@ -202,6 +295,8 @@ class _IOS26ScaffoldState extends State<IOS26Scaffold>
                       onTap: widget.bottomNavigationBar!.onTap!,
                       tint: CupertinoTheme.of(context).primaryColor,
                       minimizeBehavior: widget.minimizeBehavior,
+                      showNativeView: showNativeView,
+                      hidden: widget.tabBarHidden,
                     )
                   : IOS26NativeTabBar(
                       destinations: widget.bottomNavigationBar!.items!,
@@ -209,6 +304,8 @@ class _IOS26ScaffoldState extends State<IOS26Scaffold>
                       onTap: widget.bottomNavigationBar!.onTap!,
                       tint: CupertinoTheme.of(context).primaryColor,
                       minimizeBehavior: widget.minimizeBehavior,
+                      showNativeView: showNativeView,
+                      hidden: widget.tabBarHidden,
                     ),
             ),
           ),
@@ -222,6 +319,12 @@ class _IOS26ScaffoldState extends State<IOS26Scaffold>
         widget.bottomNavigationBar!.items!.isNotEmpty;
 
     return CupertinoPageScaffold(
+      // When a native tab bar is present it sits in Positioned(bottom: 0)
+      // inside a Stack. If the scaffold resizes for the keyboard the tab bar
+      // floats above it — non-standard on iOS. Disable the resize so the
+      // keyboard window (higher z-order) covers the tab bar naturally.
+      resizeToAvoidBottomInset:
+          widget.resizeToAvoidBottomInset ?? !hasBottomNav,
       child: hasBottomNav
           ? NotificationListener<ScrollNotification>(
               onNotification: _handleScrollNotification,
