@@ -9,7 +9,12 @@ A Flutter package that provides adaptive platform-specific widgets with native i
 
 ## Changes in this fork
 
-- **Fixed remounting issue**: Removed `selectedIndex` from `IOS26Scaffold` key to prevent unnecessary widget remounts when bottom navigation selection changes.
+Synced with upstream `v0.1.111`. Patches carried on top of upstream — preserve these when merging:
+
+- **Fixed remounting issue**: Removed `selectedIndex` from the `IOS26Scaffold` key in `lib/src/widgets/adaptive_scaffold.dart` to prevent unnecessary widget remounts when bottom navigation selection changes.
+- **`extendBody: true`** on the Material tabbed scaffold, so the body extends under the navigation bar for the blur effect.
+- **Navigation bar type safety**: a custom `cupertinoNavigationBar` is always wrapped via `ObstructingPreferredSizeWrapper` (`lib/src/widgets/obstructing_preferred_size_wrapper.dart`) instead of being cast, avoiding a type-cast crash when a plain `PreferredSizeWidget` is supplied to `CupertinoPageScaffold`.
+- **`onEditingComplete`** callback added to `AdaptiveTextField`.
 
   <img src="https://github.com/berkaycatak/adaptive_platform_ui/blob/main/img/highlight-img.png?raw=true" alt="iOS 26 Native Toolbar">
 

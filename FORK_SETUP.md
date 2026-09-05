@@ -4,7 +4,13 @@ This repository is a fork of [adaptive_platform_ui](https://github.com/berkaycat
 
 ## Changes Made
 
+Currently synced with upstream `v0.1.111`. These are the fork-local patches — they must be
+re-applied by hand whenever an upstream merge conflicts with them:
+
 1. **Fixed remounting issue**: Removed `selectedIndex` from `IOS26Scaffold` key in `lib/src/widgets/adaptive_scaffold.dart` to prevent unnecessary widget remounts.
+2. **`extendBody: true`** on the Material tabbed scaffold in `lib/src/widgets/adaptive_scaffold.dart`, letting the body extend under the navigation bar for the blur effect.
+3. **Navigation bar type safety**: `_wrapAsObstructing` + `lib/src/widgets/obstructing_preferred_size_wrapper.dart` always wrap a custom `cupertinoNavigationBar` rather than casting it, avoiding a type-cast crash on `CupertinoPageScaffold`.
+4. **`onEditingComplete`** callback on `AdaptiveTextField` in `lib/src/widgets/adaptive_text_field.dart`.
 
 ## Setting up the Repository in SkinDetector Organization
 
